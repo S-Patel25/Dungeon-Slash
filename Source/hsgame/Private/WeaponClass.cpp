@@ -8,7 +8,6 @@
 #include "Components/BoxComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "HitInterface.h"
-#include "NiagaraComponent.h"
 
 AWeaponClass::AWeaponClass() //constructor
 {
@@ -33,10 +32,8 @@ void AWeaponClass::BeginPlay()
 
 }
 
-void AWeaponClass::Equip(USceneComponent* InParent, FName InSocketName, AActor* newOwner, APawn* newInstigator)
+void AWeaponClass::Equip(USceneComponent* InParent, FName InSocketName)
 {
-	SetOwner(newOwner);
-	SetInstigator(newInstigator);
 	AttachMeshToSocket(InParent, InSocketName); //now that we've made a method for attach to component, we no longer need to cast
 	itemState = EItemState::EIS_Equipped;
 	if (equipSound)
@@ -47,10 +44,6 @@ void AWeaponClass::Equip(USceneComponent* InParent, FName InSocketName, AActor* 
 	if (sphereComp)
 	{
 		sphereComp->SetCollisionEnabled(ECollisionEnabled::NoCollision); //setting the weapon to have to collision once equipped
-	}
-	if (embers)
-	{
-		embers->Deactivate(); //will get rid of niagara effect once picked up
 	}
 	
 }
@@ -93,8 +86,6 @@ void AWeaponClass::OnBoxOverlap(UPrimitiveComponent* OverlappedComponent, AActor
 
 	if (boxHit.GetActor())
 	{
-		UGameplayStatics::ApplyDamage(boxHit.GetActor(), Damage, GetInstigator()->GetController(), this, UDamageType::StaticClass()); //applydamage code based on total damage, what its hitting, where its coming from, and damage properties
-
 		IHitInterface* hitInterface = Cast<IHitInterface>(boxHit.GetActor()); //casting to see if the actor hit implements the interface
 
 		if (hitInterface)
@@ -104,7 +95,6 @@ void AWeaponClass::OnBoxOverlap(UPrimitiveComponent* OverlappedComponent, AActor
 		actorsToIgnoreTracker.AddUnique(boxHit.GetActor()); //adding actor to ignore array
 
 		CreateFields(boxHit.ImpactPoint); //passing in impact point so we can destroy meshes with sword
-
 	}
 
 }

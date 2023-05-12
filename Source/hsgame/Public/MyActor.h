@@ -7,7 +7,6 @@
 #include "MyActor.generated.h"
 
 class USphereComponent;
-class UNiagaraComponent;
 
 enum class EItemState : uint8 //control status of item so we can apply different behaviour too it
 {
@@ -61,9 +60,6 @@ protected:
 	UPROPERTY(VisibleAnywhere)
 	USphereComponent* sphereComp;
 	
-	UPROPERTY(EditAnywhere, Category = "Particles")
-	UNiagaraComponent* embers;
-
 private:
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true")) //makes it so you can see, not edit (good for vars that should not be changed or edited, but still good to expose to bp to see effects, use META property to access private variables bp
