@@ -22,7 +22,7 @@ public:
 
 	AWeaponClass();
 
-	void Equip(USceneComponent* InParent, FName InSocketName);
+	void Equip(USceneComponent* InParent, FName InSocketName, AActor* newOwner, APawn* newInstigator);
 
 	void AttachMeshToSocket(USceneComponent* InParent, const FName& InSocketName);
 
@@ -58,4 +58,7 @@ private:
 
 	UPROPERTY(VisibleAnywhere, Category = "Weapon Properties")
 	USceneComponent* end;
+
+	UPROPERTY(VisibleAnywhere, Category = "Weapon Properties")
+	float Damage = 20.f;
 };

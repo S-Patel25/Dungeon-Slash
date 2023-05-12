@@ -5,6 +5,7 @@
 #include "hsgame/DebugMacros.h" //use custom header files instead of putting everything in one header file for readability and modularity
 #include "Components/SphereComponent.h"
 #include "hscharacter.h"
+#include "NiagaraComponent.h"
 
 
 //WHEN LARGE BLOCKS ARE CODE ARE COMMENTED OUT, its simply because of new content being added
@@ -20,6 +21,9 @@ AMyActor::AMyActor()
 
 	sphereComp = CreateDefaultSubobject<USphereComponent>(TEXT("Sphere Component"));
 	sphereComp->SetupAttachment(GetRootComponent());
+
+	embers = CreateDefaultSubobject<UNiagaraComponent>(TEXT("Ember Effect"));
+	embers->SetupAttachment(GetRootComponent());
 
 }
 

@@ -100,10 +100,27 @@ void Ahscharacter::equipItem()
 
 	if (overlappingWeapon)
 	{
-		overlappingWeapon->Equip(GetMesh(), FName("RightHandSocket")); //now that we've cast, we can equip the weapon now
-		characterState = ECharacterState::ECS_EquippedOneHandWeapon; //now that we've picked up a weapon, set state accordingly
+		if (overlappingWeapon->ActorHasTag(FName("OneHanded")))
+		{
+			overlappingWeapon->Equip(GetMesh(), FName("RightHandSocketOneHanded"), this, this); //now that we've cast, we can equip the weapon now
+		}
+		else if (overlappingWeapon->ActorHasTag(FName("TwoHanded")))
+		{
+			overlappingWeapon->Equip(GetMesh(), FName("RightHandSocketTwoHanded"), this, this);
+		}
+
 		OverlappingItem = nullptr;
 		equippedWeapon = overlappingWeapon; //setting the weapon to variable to keep track
+
+		if (equippedWeapon->ActorHasTag(FName("OneHanded"))) //check to see what kind of weapon user has, so correct animations can be played
+		{
+			characterState = ECharacterState::ECS_EquippedOneHandWeapon;
+		}
+		else if (equippedWeapon->ActorHasTag(FName("TwoHanded")))
+		{
+			characterState = ECharacterState::ECS_EquippedTwoHandWeapon;
+		}
+
 	}
 	else //if we're not over;lapping the weapon (means we either have it or not in the overlap zone, then we do other checks)
 	{
@@ -116,7 +133,15 @@ void Ahscharacter::equipItem()
 		else if (CanArm())
 		{
 			playEquipMontage(FName("Equip"));
-			characterState = ECharacterState::ECS_EquippedOneHandWeapon;
+
+			if (equippedWeapon->ActorHasTag(FName("OneHanded")))
+			{
+				characterState = ECharacterState::ECS_EquippedOneHandWeapon;
+			}
+			else if (equippedWeapon->ActorHasTag(FName("TwoHanded")))
+			{
+				characterState = ECharacterState::ECS_EquippedTwoHandWeapon;
+			}
 			actionState = EActionState::EAS_EquippingOrUnequippingWeapon;
 		}
 	}
@@ -211,7 +236,7 @@ void Ahscharacter::EquipNotify()
 {
 	if (equippedWeapon)
 	{
-		equippedWeapon->AttachMeshToSocket(GetMesh(), FName("RightHandSocket")); //this will attach weapon to new spine socket
+		equippedWeapon->AttachMeshToSocket(GetMesh(), FName("RightHandSocketOneHanded")); //this will attach weapon to new spine socket
 	}
 }
 
