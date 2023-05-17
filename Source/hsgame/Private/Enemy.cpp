@@ -6,6 +6,8 @@
 #include "Components/CapsuleComponent.h"
 #include "Animation/AnimMontage.h"
 #include "Kismet/GameplayStatics.h"
+#include "AttributeComponent.h"
+#include "HealthBarComponent.h"
 
 AEnemy::AEnemy()
 {
@@ -16,12 +18,68 @@ AEnemy::AEnemy()
 	GetMesh()->SetGenerateOverlapEvents(true);
 	GetCapsuleComponent()->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
 
+	attributes = CreateDefaultSubobject<UAttributeComponent>(TEXT("Attributes"));
+
+	healthBarWidget = CreateDefaultSubobject<UHealthBarComponent>(TEXT("Health Bar Widget"));
+	healthBarWidget->SetupAttachment(GetRootComponent()); //as this will be on top of enemy head, we need it attached
+
 }
 
 void AEnemy::BeginPlay()
 {
 	Super::BeginPlay();
+	if(healthBarWidget)
+	{
+		healthBarWidget->SetVisibility(false); //setting health bar to hidden until enemy gets hit
+	}
 	
+}
+
+void AEnemy::Death()
+{
+	UAnimInstance* animInstance = GetMesh()->GetAnimInstance(); 
+
+	if (animInstance && deathMontage) 
+	{
+		animInstance->Montage_Play(deathMontage);  
+
+		int32 randAttack = FMath::RandRange(0, 4); //play random death animation
+		FName sectionName = FName();
+
+		switch (randAttack)
+		{
+		case 0:
+			sectionName = FName("Death1"); 
+			deathPose = EDeathPose::EDP_Death1;
+			break;
+		case 1:
+			sectionName = FName("Death2");
+			deathPose = EDeathPose::EDP_Death2;
+			break;
+		case 2:
+			sectionName = FName("Death3");
+			deathPose = EDeathPose::EDP_Death3;
+			break;
+		case 3:
+			sectionName = FName("Death4");
+			deathPose = EDeathPose::EDP_Death4;
+			break;
+		case 4:
+			sectionName = FName("Death5");
+			deathPose = EDeathPose::EDP_Death5;
+			break;
+		}
+
+		animInstance->Montage_JumpToSection(sectionName, deathMontage);
+	}
+
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	SetLifeSpan(3.f); //disable enemy capsule component so we can walk through when its dead, and then destroy it after 3 seconds
+
+	if (healthBarWidget)
+	{
+		healthBarWidget->SetVisibility(false); 
+	}
 }
 
 void AEnemy::playHitReactMontage(const FName& sectionName)
@@ -40,6 +98,21 @@ void AEnemy::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	if (combatTarget)
+	{
+		const double distanceToEnemy = (combatTarget->GetActorLocation() - GetActorLocation()).Size(); //this gets the distance between enemy and player, so we can hide or show health bar based on distance
+
+		if (distanceToEnemy > combatRadius)
+		{
+			combatTarget = nullptr;
+			if (healthBarWidget)
+			{
+				healthBarWidget->SetVisibility(false); //disable health bar from showing when we are far away from enemy
+			}	
+		}
+	}
+
+
 }
 
 void AEnemy::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -50,7 +123,20 @@ void AEnemy::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 
 void AEnemy::GetHit_Implementation(const FVector& impactPoint)
 {
-	DirectionalHitReact(impactPoint);
+	if (healthBarWidget)
+	{
+		healthBarWidget->SetVisibility(true);
+	}
+
+
+	if (attributes && attributes->isAlive())
+	{
+		DirectionalHitReact(impactPoint); //only hit if character is alive
+	}
+	else
+	{
+		Death();
+	}
 
 	if (hitSound)
 	{
@@ -105,5 +191,18 @@ void AEnemy::DirectionalHitReact(const FVector& impactPoint)
 	}
 
 	playHitReactMontage(sectionName); //now after all the math is done, we play the montage based on the angle of theta
+}
+
+float AEnemy::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
+{
+	if (attributes && healthBarWidget)
+	{
+		attributes->tookDamage(DamageAmount);
+		healthBarWidget->SetHealthPercent(attributes->getHealthPercent()); //setting health for the widget based on damage
+	}
+
+	combatTarget = EventInstigator->GetPawn();
+
+	return DamageAmount;
 }
 
