@@ -118,7 +118,7 @@ void Ahscharacter::equipItem()
 		}
 		else if (equippedWeapon->ActorHasTag(FName("TwoHanded"))) //using actor tags to determine the type of weapon player is holding, so enum state can be changed based on that
 		{
-			characterState = ECharacterState::ECS_EquippedTwoHandWeapon;
+			characterState = ECharacterState::ECS_EquippedTwoHandWeapon; //test
 		}
 
 	}
