@@ -8,6 +8,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "AttributeComponent.h"
 #include "HealthBarComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "AIController.h"
 
 AEnemy::AEnemy()
 {
@@ -23,6 +25,11 @@ AEnemy::AEnemy()
 	healthBarWidget = CreateDefaultSubobject<UHealthBarComponent>(TEXT("Health Bar Widget"));
 	healthBarWidget->SetupAttachment(GetRootComponent()); //as this will be on top of enemy head, we need it attached
 
+	GetCharacterMovement()->bOrientRotationToMovement = true; //setting these settings in both BP's and cpp
+	bUseControllerRotationPitch = false;
+	bUseControllerRotationRoll = false;
+	bUseControllerRotationYaw = false;
+
 }
 
 void AEnemy::BeginPlay()
@@ -33,6 +40,21 @@ void AEnemy::BeginPlay()
 		healthBarWidget->SetVisibility(false); //setting health bar to hidden until enemy gets hit
 	}
 	
+	enemyController = Cast<AAIController>(GetController()); //casting from AController to ai controlller
+
+	if (enemyController && patrolTarget)
+	{
+		FAIMoveRequest moveRequest;
+		moveRequest.SetGoalActor(patrolTarget); //uses this structs functions to set patrol target as point to where enemy will move to
+		moveRequest.SetAcceptanceRadius(10.f);
+
+		FNavPathSharedPtr navPath;
+
+		enemyController->MoveTo(moveRequest, &navPath);
+		TArray<FNavPathPoint>& pathPoints = navPath->GetPathPoints(); //using & so it does not make any copies
+
+	}
+
 }
 
 void AEnemy::Death()
@@ -74,12 +96,18 @@ void AEnemy::Death()
 	}
 
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	SetLifeSpan(3.f); //disable enemy capsule component so we can walk through when its dead, and then destroy it after 3 seconds
+	SetLifeSpan(5.f); //disable enemy capsule component so we can walk through when its dead, and then destroy it after 3 seconds
 
 	if (healthBarWidget)
 	{
 		healthBarWidget->SetVisibility(false); 
 	}
+}
+
+bool AEnemy::inTargetRange(AActor* target, double radius) //makes calculating range easier
+{
+	const double distanceToEnemy = (target->GetActorLocation() - GetActorLocation()).Size();
+	return distanceToEnemy <= radius;
 }
 
 void AEnemy::playHitReactMontage(const FName& sectionName)
@@ -102,13 +130,43 @@ void AEnemy::Tick(float DeltaTime)
 	{
 		const double distanceToEnemy = (combatTarget->GetActorLocation() - GetActorLocation()).Size(); //this gets the distance between enemy and player, so we can hide or show health bar based on distance
 
-		if (distanceToEnemy > combatRadius)
+		if (!inTargetRange(combatTarget, combatRadius))
 		{
 			combatTarget = nullptr;
 			if (healthBarWidget)
 			{
 				healthBarWidget->SetVisibility(false); //disable health bar from showing when we are far away from enemy
 			}	
+		}
+	}
+
+	if (patrolTarget && enemyController)
+	{
+		if (inTargetRange(patrolTarget, patrolRadius))
+		{
+			TArray<AActor*> validTargets;
+
+			for (AActor* target : patrolTargets)
+			{
+				if (target != patrolTarget)
+				{
+					validTargets.AddUnique(target); //will make sure each target is valid (not the same one each time)
+				}
+			}
+
+			const int32 numTargets = validTargets.Num();
+
+			if (numTargets > 0)
+			{
+				const int32 randTargetSelection = FMath::RandRange(0, numTargets - 1); //making a random range of patrol targets
+				AActor* target = validTargets[randTargetSelection];
+				patrolTarget = target; //setting our patrol target based on the rand selection
+
+				FAIMoveRequest moveRequest;
+				moveRequest.SetGoalActor(patrolTarget);
+				moveRequest.SetAcceptanceRadius(10.f);
+				enemyController->MoveTo(moveRequest);
+			}
 		}
 	}
 

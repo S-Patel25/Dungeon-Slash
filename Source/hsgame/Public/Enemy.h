@@ -11,6 +11,7 @@
 class UAnimMontage;
 class UAttributeComponent;
 class UHealthBarComponent;
+class AAIController;
 
 UCLASS()
 class HSGAME_API AEnemy : public ACharacter, public IHitInterface
@@ -36,8 +37,12 @@ protected:
 	
 	void Death();
 
+	bool inTargetRange(AActor* target, double radius);
+
 	UPROPERTY(BlueprintReadOnly)
 	EDeathPose deathPose = EDeathPose::EDP_Alive;
+
+
 
 	//mongtages
 
@@ -72,6 +77,20 @@ private:
 
 	UPROPERTY(EditAnywhere)
 	double combatRadius = 500.f;
+
+	//nav and ai
+
+	UPROPERTY() //good rule of thumb to add UPROPERTY to actor pointers
+	AAIController* enemyController;
+
+	UPROPERTY(EditInstanceOnly, Category = "AINav")
+	AActor* patrolTarget; //refers to current patrol target
+
+	UPROPERTY(EditInstanceOnly, Category = "AINav")
+	TArray<AActor*> patrolTargets; //array so we can store multiple patrol points
+
+	UPROPERTY(EditAnywhere)
+	double patrolRadius = 1000.f;
 
 public:	
 
