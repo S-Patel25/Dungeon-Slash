@@ -10,6 +10,7 @@
 #include "HealthBarComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "AIController.h"
+#include "Perception/PawnSensingComponent.h"
 
 AEnemy::AEnemy()
 {
@@ -24,6 +25,10 @@ AEnemy::AEnemy()
 
 	healthBarWidget = CreateDefaultSubobject<UHealthBarComponent>(TEXT("Health Bar Widget"));
 	healthBarWidget->SetupAttachment(GetRootComponent()); //as this will be on top of enemy head, we need it attached
+
+	pawnSense = CreateDefaultSubobject<UPawnSensingComponent>(TEXT("Pawn Sense Component"));
+	pawnSense->SetPeripheralVisionAngle(45.f);
+	pawnSense->SightRadius = 4000.f; //setting values in cpp for practice, can also be done in blueprints (better in bp so you can visually see)
 
 	GetCharacterMovement()->bOrientRotationToMovement = true; //setting these settings in both BP's and cpp
 	bUseControllerRotationPitch = false;
@@ -41,20 +46,12 @@ void AEnemy::BeginPlay()
 	}
 	
 	enemyController = Cast<AAIController>(GetController()); //casting from AController to ai controlller
+	moveToTarget(patrolTarget);
 
-	if (enemyController && patrolTarget)
+	if (pawnSense)
 	{
-		FAIMoveRequest moveRequest;
-		moveRequest.SetGoalActor(patrolTarget); //uses this structs functions to set patrol target as point to where enemy will move to
-		moveRequest.SetAcceptanceRadius(10.f);
-
-		FNavPathSharedPtr navPath;
-
-		enemyController->MoveTo(moveRequest, &navPath);
-		TArray<FNavPathPoint>& pathPoints = navPath->GetPathPoints(); //using & so it does not make any copies
-
+		pawnSense->OnSeePawn.AddDynamic(this, &AEnemy::pawnSighted); //using onseepawn delete function and binding that custom function so it can be used along with other functionality (changing state, speed, etc.)
 	}
-
 }
 
 void AEnemy::Death()
@@ -106,8 +103,70 @@ void AEnemy::Death()
 
 bool AEnemy::inTargetRange(AActor* target, double radius) //makes calculating range easier
 {
+	if (target == nullptr) return false;
 	const double distanceToEnemy = (target->GetActorLocation() - GetActorLocation()).Size();
 	return distanceToEnemy <= radius;
+}
+
+void AEnemy::moveToTarget(AActor* target)
+{
+	if (enemyController == nullptr || target == nullptr) return;
+
+	FAIMoveRequest moveRequest;
+	moveRequest.SetGoalActor(target); //uses this structs functions to set patrol target as point to where enemy will move to
+	moveRequest.SetAcceptanceRadius(10.f);
+
+	FNavPathSharedPtr navPath;
+
+	enemyController->MoveTo(moveRequest);
+
+}
+
+AActor* AEnemy::choosePatrolTarget() //refactored method from tick function, now will return target actor which can be used for other functionality
+{
+	TArray<AActor*> validTargets;
+
+	for (AActor* target : patrolTargets)
+	{
+		if (target != patrolTarget)
+		{
+			validTargets.AddUnique(target); //will make sure each target is valid (not the same one each time)
+		}
+	}
+
+	const int32 numTargets = validTargets.Num();
+
+	if (numTargets > 0)
+	{
+		const int32 randTargetSelection = FMath::RandRange(0, numTargets - 1); //making a random range of patrol targets
+		return validTargets[randTargetSelection];
+	}
+		
+	return nullptr;
+}
+
+void AEnemy::pawnSighted(APawn* seenPawn)
+{
+	if (enemyState == EEnemyState::EES_Chasing) return; //simple check to see if enemy is already chasing then return so it does not call function multiple times
+
+	if (seenPawn->ActorHasTag(FName("Character"))) //checks to see if enemy is looking at player
+	{
+		GetWorldTimerManager().ClearTimer(patrolTimer); //clear the timer so enemy does not go back to patrolling randomly
+		GetCharacterMovement()->MaxWalkSpeed = 300.f; //increase speed so enemy is faster
+		combatTarget = seenPawn;
+
+		if (enemyState != EEnemyState::EES_Attacking)
+		{
+			enemyState = EEnemyState::EES_Chasing;
+			moveToTarget(combatTarget);
+		}
+		
+	}
+
+
+
+
+
 }
 
 void AEnemy::playHitReactMontage(const FName& sectionName)
@@ -121,56 +180,63 @@ void AEnemy::playHitReactMontage(const FName& sectionName)
 	}
 }
 
+void AEnemy::patrolTimerFinished()
+{
+	moveToTarget(patrolTarget);
+}
+
 
 void AEnemy::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	if (combatTarget)
-	{
-		const double distanceToEnemy = (combatTarget->GetActorLocation() - GetActorLocation()).Size(); //this gets the distance between enemy and player, so we can hide or show health bar based on distance
+	//const double distanceToEnemy = (combatTarget->GetActorLocation() - GetActorLocation()).Size(); //this gets the distance between enemy and player, so we can hide or show health bar based on distance
 
-		if (!inTargetRange(combatTarget, combatRadius))
-		{
-			combatTarget = nullptr;
-			if (healthBarWidget)
-			{
-				healthBarWidget->SetVisibility(false); //disable health bar from showing when we are far away from enemy
-			}	
-		}
+	if (enemyState > EEnemyState::EES_Patrolling) //since enums are ints, this is basically saying if the enemystate is either attacking or chasing, check for combat target
+	{
+		checkCombatTarget();
+	}
+	else //if no combat target, then just patrol normally
+	{
+		checkPatrolTarget();
 	}
 
-	if (patrolTarget && enemyController)
+}
+
+void AEnemy::checkPatrolTarget()
+{
+	if (inTargetRange(patrolTarget, patrolRadius))
 	{
-		if (inTargetRange(patrolTarget, patrolRadius))
-		{
-			TArray<AActor*> validTargets;
-
-			for (AActor* target : patrolTargets)
-			{
-				if (target != patrolTarget)
-				{
-					validTargets.AddUnique(target); //will make sure each target is valid (not the same one each time)
-				}
-			}
-
-			const int32 numTargets = validTargets.Num();
-
-			if (numTargets > 0)
-			{
-				const int32 randTargetSelection = FMath::RandRange(0, numTargets - 1); //making a random range of patrol targets
-				AActor* target = validTargets[randTargetSelection];
-				patrolTarget = target; //setting our patrol target based on the rand selection
-
-				FAIMoveRequest moveRequest;
-				moveRequest.SetGoalActor(patrolTarget);
-				moveRequest.SetAcceptanceRadius(10.f);
-				enemyController->MoveTo(moveRequest);
-			}
-		}
+		patrolTarget = choosePatrolTarget(); //using refactored functions to clean up code
+		GetWorldTimerManager().SetTimer(patrolTimer, this, &AEnemy::patrolTimerFinished, 5.f); //using getworldtimer to create "idle" patrolling movement for a time, then enemy will start moving again
 	}
+}
 
-
+void AEnemy::checkCombatTarget()
+{
+	if (!inTargetRange(combatTarget, combatRadius)) 
+	{
+		combatTarget = nullptr; //outside combat radius, so enemy will lose interest
+		if (healthBarWidget)
+		{
+			healthBarWidget->SetVisibility(false); //disable health bar from showing when we are far away from enemy
+		}
+		enemyState = EEnemyState::EES_Patrolling;
+		GetCharacterMovement()->MaxWalkSpeed = 100.f;
+		moveToTarget(patrolTarget); //since there is still a patrol target (not player anymore), enemy will start moving there
+	}
+	else if(!inTargetRange(combatTarget, attackRadius) && enemyState != EEnemyState::EES_Chasing)
+	{
+		//chase player
+		enemyState = EEnemyState::EES_Chasing;
+		GetCharacterMovement()->MaxWalkSpeed = 300.f;
+		moveToTarget(combatTarget);
+	}
+	else if (inTargetRange(combatTarget, attackRadius) && enemyState != EEnemyState::EES_Attacking)
+	{
+		//attack player
+		enemyState = EEnemyState::EES_Attacking;
+	}
 }
 
 void AEnemy::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -260,7 +326,9 @@ float AEnemy::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AC
 	}
 
 	combatTarget = EventInstigator->GetPawn();
-
+	enemyState = EEnemyState::EES_Chasing; //makes it so enemy will agro when hit behind or anywhere where its not looking
+	GetCharacterMovement()->MaxWalkSpeed = 300.f;
+	moveToTarget(combatTarget);
 	return DamageAmount;
 }
 

@@ -27,3 +27,12 @@ enum class EDeathPose : uint8 //this enum is to keep track of the enemies death 
 	EDP_Death4 UMETA(DisplayName = "Death4"),
 	EDP_Death5 UMETA(DisplayName = "Death5")
 };
+
+UENUM(BlueprintType)
+enum class EEnemyState : uint8 //enum keeps track of what state the enemy is in 
+{
+	EES_Patrolling UMETA(DisplayName = "Patrolling"),
+	EES_Chasing UMETA(DisplayName = "Chasing"),
+	EES_Attacking UMETA(DisplayName = "Attacking")
+
+};

@@ -41,6 +41,8 @@ void Ahscharacter::BeginPlay()
 
 	APlayerController* controller = Cast<APlayerController>(GetController()); //equivalent of get controller, and cast to player controller in blueprints
 
+	Tags.Add(FName("Character")); //tags are useful for managing anim states, checking for specific type, etc. (sometimes can be used instead of casting to improve performance (as casting can be expensive))
+
 	if (controller) //null check
 	{
 		//neat trick if want to use is putting var declaration inside if statement scope so thats its only valid in if statment, can't be used outside

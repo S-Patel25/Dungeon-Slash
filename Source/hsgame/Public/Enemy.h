@@ -12,6 +12,7 @@ class UAnimMontage;
 class UAttributeComponent;
 class UHealthBarComponent;
 class AAIController;
+class UPawnSensingComponent;
 
 UCLASS()
 class HSGAME_API AEnemy : public ACharacter, public IHitInterface
@@ -22,6 +23,8 @@ public:
 	AEnemy();
 
 	virtual void Tick(float DeltaTime) override;
+	void checkPatrolTarget();
+	void checkCombatTarget();
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 	virtual void GetHit_Implementation(const FVector& impactPoint) override; //because its native event, we mark it as implementation
@@ -39,9 +42,14 @@ protected:
 
 	bool inTargetRange(AActor* target, double radius);
 
+	void moveToTarget(AActor* target);
+	AActor* choosePatrolTarget();
+
+	UFUNCTION() //remember to add UFUNCTION when dealing with delegates and callback functions
+	void pawnSighted(APawn* seenPawn);
+
 	UPROPERTY(BlueprintReadOnly)
 	EDeathPose deathPose = EDeathPose::EDP_Alive;
-
 
 
 	//mongtages
@@ -52,8 +60,16 @@ protected:
 
 private:
 
+	//components
+
 	UPROPERTY(VisibleAnywhere)
 	UAttributeComponent* attributes;
+
+	UPROPERTY(VisibleAnywhere)
+	UHealthBarComponent* healthBarWidget;
+
+	UPROPERTY(VisibleAnywhere)
+	UPawnSensingComponent* pawnSense;
 
 	//montages
 
@@ -63,20 +79,13 @@ private:
 	UPROPERTY(EditDefaultsOnly, Category = "Montages") //make sure its exposed to ue's reflection system
 	UAnimMontage* deathMontage;
 
+	//sounds and vfx
+
 	UPROPERTY(EditAnywhere, Category = "Sound")
 	USoundBase* hitSound;
 
 	UPROPERTY(EditAnywhere, Category = "VFX")
 	UParticleSystem* hitParticles;
-
-	UPROPERTY(VisibleAnywhere)
-	UHealthBarComponent* healthBarWidget;
-
-	UPROPERTY()
-	AActor* combatTarget;
-
-	UPROPERTY(EditAnywhere)
-	double combatRadius = 500.f;
 
 	//nav and ai
 
@@ -90,7 +99,23 @@ private:
 	TArray<AActor*> patrolTargets; //array so we can store multiple patrol points
 
 	UPROPERTY(EditAnywhere)
-	double patrolRadius = 1000.f;
+	double patrolRadius = 200.f;
+
+	UPROPERTY()
+	AActor* combatTarget;
+
+	UPROPERTY(EditAnywhere)
+	double combatRadius = 500.f;
+
+	UPROPERTY(EditAnywhere)
+	double attackRadius = 150.f;
+
+	FTimerHandle patrolTimer;
+	void patrolTimerFinished();
+
+	//enum
+
+	EEnemyState enemyState = EEnemyState::EES_Patrolling;
 
 public:	
 
